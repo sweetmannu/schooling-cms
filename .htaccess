@@ -1,0 +1,257 @@
+# ==========================================================
+# Schooling CMS - Apache Configuration
+# Local URL: http://localhost/schooling-cms/
+# ==========================================================
+
+# Disable directory browsing
+Options -Indexes
+
+# Prevent Apache MultiViews from interfering with friendly URLs
+Options -MultiViews
+
+# Hide Apache signature on generated error pages
+ServerSignature Off
+
+
+# ==========================================================
+# URL Rewriting
+# ==========================================================
+
+<IfModule mod_rewrite.c>
+
+    RewriteEngine On
+    RewriteBase /schooling-cms/
+
+    # ------------------------------------------------------
+    # Protect internal application directories
+    # ------------------------------------------------------
+
+    RewriteRule ^config(?:/|$) - [F,L,NC]
+    RewriteRule ^includes(?:/|$) - [F,L,NC]
+
+    # ------------------------------------------------------
+    # Redirect legacy Notes URL to canonical Chapter URL
+    # /notes/chapter-slug -> /chapter/chapter-slug
+    # ------------------------------------------------------
+
+    RewriteRule ^notes/([a-zA-Z0-9_-]+)/?$ chapter/$1 [R=301,L,NE]
+
+    # ------------------------------------------------------
+    # Dynamic XML Sitemap
+    # /sitemap.xml -> sitemap.php
+    # ------------------------------------------------------
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^sitemap\.xml$ sitemap.php [L]
+
+    # ------------------------------------------------------
+    # Category
+    # ------------------------------------------------------
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^category/([a-zA-Z0-9_-]+)/?$ category.php?slug=$1 [L,QSA]
+
+    # ------------------------------------------------------
+    # Subject
+    # ------------------------------------------------------
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^subject/([a-zA-Z0-9_-]+)/?$ subject.php?slug=$1 [L,QSA]
+
+    # ------------------------------------------------------
+    # Chapter
+    # ------------------------------------------------------
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^chapter/([a-zA-Z0-9_-]+)/?$ chapter.php?slug=$1 [L,QSA]
+
+    # ------------------------------------------------------
+    # Single Note
+    # ------------------------------------------------------
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^note/([a-zA-Z0-9_-]+)/?$ view-note.php?slug=$1 [L,QSA]
+
+</IfModule>
+
+
+# ==========================================================
+# Custom Error Pages
+# ==========================================================
+
+ErrorDocument 404 /schooling-cms/404.php
+
+
+# ==========================================================
+# Compression
+# ==========================================================
+
+<IfModule mod_deflate.c>
+
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE text/javascript
+
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/atom+xml
+    AddOutputFilterByType DEFLATE application/manifest+json
+
+    AddOutputFilterByType DEFLATE image/svg+xml
+
+    AddOutputFilterByType DEFLATE font/ttf
+    AddOutputFilterByType DEFLATE font/otf
+    AddOutputFilterByType DEFLATE font/woff
+    AddOutputFilterByType DEFLATE font/woff2
+
+</IfModule>
+
+
+# ==========================================================
+# Browser Cache Expiration
+# ==========================================================
+
+<IfModule mod_expires.c>
+
+    ExpiresActive On
+
+    # Files without a more specific MIME rule
+    ExpiresDefault "access plus 1 month"
+
+    # Dynamic documents
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType application/xhtml+xml "access plus 0 seconds"
+
+    # XML and JSON
+    ExpiresByType application/xml "access plus 1 hour"
+    ExpiresByType text/xml "access plus 1 hour"
+    ExpiresByType application/json "access plus 1 hour"
+
+    # CSS and JavaScript
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType text/javascript "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+
+    # Images
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/avif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType image/x-icon "access plus 1 year"
+
+    # Fonts
+    ExpiresByType font/ttf "access plus 1 year"
+    ExpiresByType font/otf "access plus 1 year"
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType application/vnd.ms-fontobject "access plus 1 year"
+
+    # PDFs
+    ExpiresByType application/pdf "access plus 1 month"
+
+</IfModule>
+
+
+# ==========================================================
+# Cache-Control Headers
+# ==========================================================
+
+<IfModule mod_headers.c>
+
+    # CSS and JavaScript
+    <FilesMatch "\.(css|js)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+
+    # Images
+    <FilesMatch "\.(jpg|jpeg|png|gif|webp|avif|svg|ico)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    # Fonts
+    <FilesMatch "\.(woff|woff2|ttf|otf|eot)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    # PDFs
+    <FilesMatch "\.pdf$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+
+    # HTML and PHP should be revalidated
+    <FilesMatch "\.(php|html|htm)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+
+</IfModule>
+
+
+# ==========================================================
+# Security Headers
+# ==========================================================
+
+<IfModule mod_headers.c>
+
+    # Prevent MIME-sniffing
+    Header always set X-Content-Type-Options "nosniff"
+
+    # Prevent third-party sites from embedding the website
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # Limit referrer details sent to other websites
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Disable browser features not required by this website
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+
+    # Prevent cross-domain policy files
+    Header always set X-Permitted-Cross-Domain-Policies "none"
+
+    # Keep resources on the same origin by default
+    Header always set Cross-Origin-Resource-Policy "same-origin"
+
+</IfModule>
+
+
+# ==========================================================
+# Protect Sensitive Files
+# ==========================================================
+
+<FilesMatch "(^|/)(\.env|composer\.(json|lock)|package(-lock)?\.json|phpunit\.xml|README[^/]*|[^/]+\.sql|[^/]+\.log)$">
+
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+
+</FilesMatch>
+
+
+# ==========================================================
+# Protect Hidden Files
+# .well-known is excluded for SSL/hosting verification
+# ==========================================================
+
+<IfModule mod_rewrite.c>
+
+    RewriteRule "(^|/)\.(?!well-known(?:/|$))" - [F,L]
+
+</IfModule>

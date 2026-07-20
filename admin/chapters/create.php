@@ -2,6 +2,7 @@
 
 require_once '../../includes/auth.php';
 require_once '../../includes/db.php';
+require_once '../../includes/csrf.php';
 
 $subjects = $pdo->query("
 SELECT id, subject_name
@@ -13,13 +14,30 @@ ORDER BY subject_name ASC
 $error = "";
 
 if ($_SERVER['REQUEST_METHOD'] == "POST") {
+    verify_csrf_token($_POST['csrf_token'] ?? '');
 
-    $subject_id = (int)$_POST['subject_id'];
-    $chapter_name = trim($_POST['chapter_name']);
-    $slug = strtolower(trim($_POST['slug']));
-    $description = trim($_POST['description']);
-    $chapter_order = (int)$_POST['chapter_order'];
-    $status = $_POST['status'];
+    $subject_id = isset($_POST['subject_id'])
+    ? (int)$_POST['subject_id']
+    : 0;
+
+$chapter_name = trim(strip_tags($_POST['chapter_name'] ?? ''));
+
+$slug = strtolower(trim($_POST['slug'] ?? ''));
+$slug = preg_replace('/[^a-z0-9\-]+/', '-', $slug);
+$slug = trim($slug, '-');
+
+$description = trim(strip_tags($_POST['description'] ?? ''));
+
+$chapter_order = isset($_POST['chapter_order'])
+    ? (int)$_POST['chapter_order']
+    : 1;
+    if ($chapter_order < 1) {
+    $chapter_order = 1;
+}
+
+$status = (($_POST['status'] ?? 'Active') === 'Inactive')
+    ? 'Inactive'
+    : 'Active';
 
     if (
         empty($subject_id) ||
@@ -30,6 +48,26 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
         $error = "Please fill all required fields.";
 
     }
+
+    /* Duplicate Chapter Check */
+
+if (empty($error)) {
+
+    $check = $pdo->prepare("
+    SELECT id
+    FROM chapters
+    WHERE chapter_name=?
+    ");
+
+    $check->execute([$chapter_name]);
+
+    if ($check->fetch()) {
+
+        $error = "Chapter already exists.";
+
+    }
+
+}
 
     if (empty($error)) {
 
@@ -116,7 +154,12 @@ Add Chapter
 
 <?php } ?>
 
-<form method="POST">
+<form method="POST" autocomplete="off">
+
+<input
+type="hidden"
+name="csrf_token"
+value="<?= csrf_token(); ?>">
 
 <div class="mb-3">
 
@@ -135,7 +178,9 @@ required>
 
 <?php foreach($subjects as $subject){ ?>
 
-<option value="<?= $subject['id']; ?>">
+<option
+value="<?= $subject['id']; ?>"
+<?= (($_POST['subject_id'] ?? '') == $subject['id']) ? 'selected' : ''; ?>>
 
 <?= htmlspecialchars($subject['subject_name']); ?>
 
@@ -157,8 +202,10 @@ Chapter Name
 
 <input
 type="text"
+id="chapter_name"
 name="chapter_name"
 class="form-control"
+value="<?= htmlspecialchars($_POST['chapter_name'] ?? ''); ?>"
 required>
 
 </div>
@@ -173,8 +220,10 @@ Slug
 
 <input
 type="text"
+id="slug"
 name="slug"
 class="form-control"
+value="<?= htmlspecialchars($_POST['slug'] ?? ''); ?>"
 required>
 
 </div>
@@ -190,7 +239,7 @@ Description
 <textarea
 name="description"
 class="form-control"
-rows="4"></textarea>
+rows="4"><?= htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
 
 </div>
 
@@ -206,7 +255,8 @@ Chapter Order
 type="number"
 name="chapter_order"
 class="form-control"
-value="1"
+value="<?= htmlspecialchars($_POST['chapter_order'] ?? '1'); ?>"
+min="1"
 required>
 
 </div>
@@ -223,9 +273,17 @@ Status
 name="status"
 class="form-select">
 
-<option value="Active">Active</option>
+<option
+value="Active"
+<?= (($_POST['status'] ?? 'Active') == 'Active') ? 'selected' : ''; ?>>
+Active
+</option>
 
-<option value="Inactive">Inactive</option>
+<option
+value="Inactive"
+<?= (($_POST['status'] ?? '') == 'Inactive') ? 'selected' : ''; ?>>
+Inactive
+</option>
 
 </select>
 
@@ -258,5 +316,27 @@ Cancel
 </div>
 
 </div>
+
+<script>
+
+const chapterInput = document.getElementById('chapter_name');
+
+if (chapterInput) {
+
+    chapterInput.addEventListener('input', function () {
+
+        let slug = this.value
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+
+        document.getElementById('slug').value = slug;
+
+    });
+
+}
+
+</script>
 
 <?php require_once '../../includes/footer.php'; ?>

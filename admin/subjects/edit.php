@@ -2,6 +2,7 @@
 
 require_once '../../includes/auth.php';
 require_once '../../includes/db.php';
+require_once '../../includes/csrf.php';
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: index.php");
@@ -12,7 +13,7 @@ $id = (int)$_GET['id'];
 
 $stmt = $pdo->prepare("SELECT * FROM subjects WHERE id=?");
 $stmt->execute([$id]);
-$subject = $stmt->fetch();
+$subject = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$subject) {
     header("Location: index.php");
@@ -29,12 +30,22 @@ ORDER BY category_name ASC
 $error = "";
 
 if ($_SERVER['REQUEST_METHOD'] == "POST") {
+    verify_csrf_token($_POST['csrf_token'] ?? '');
 
-    $category_id = (int)$_POST['category_id'];
-    $subject_name = trim($_POST['subject_name']);
-    $slug = strtolower(trim($_POST['slug']));
-    $description = trim($_POST['description']);
-    $status = $_POST['status'];
+    $category_id = isset($_POST['category_id'])
+    ? (int)$_POST['category_id']
+    : 0;
+    $subject_name = trim(strip_tags($_POST['subject_name'] ?? ''));
+
+$slug = strtolower(trim($_POST['slug'] ?? ''));
+$slug = preg_replace('/[^a-z0-9\-]+/', '-', $slug);
+$slug = trim($slug, '-');
+
+$description = trim(strip_tags($_POST['description'] ?? ''));
+
+$status = (($_POST['status'] ?? 'Active') === 'Inactive')
+    ? 'Inactive'
+    : 'Active';
 
     if (
         empty($category_id) ||
@@ -43,6 +54,30 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
     ) {
         $error = "Please fill all required fields.";
     }
+
+    /* Duplicate Subject Check */
+
+if (empty($error)) {
+
+    $check = $pdo->prepare("
+    SELECT id
+    FROM subjects
+    WHERE subject_name=?
+    AND id!=?
+    ");
+
+    $check->execute([
+        $subject_name,
+        $id
+    ]);
+
+    if ($check->fetch()) {
+
+        $error = "Subject already exists.";
+
+    }
+
+}
 
     if (empty($error)) {
 
@@ -121,7 +156,12 @@ Edit Subject
 
 <?php } ?>
 
-<form method="POST">
+<form method="POST" autocomplete="off">
+
+<input
+type="hidden"
+name="csrf_token"
+value="<?= csrf_token(); ?>">
 
 <div class="mb-3">
 
@@ -141,7 +181,7 @@ required>
 <option
 value="<?= $cat['id']; ?>"
 
-<?= ($subject['category_id']==$cat['id']) ? "selected" : ""; ?>>
+<?= (($_POST['category_id'] ?? $subject['category_id']) == $cat['id']) ? 'selected' : ''; ?>>
 
 <?= htmlspecialchars($cat['category_name']); ?>
 
@@ -163,10 +203,11 @@ Subject Name
 
 <input
 type="text"
+id="subject_name"
 name="subject_name"
 class="form-control"
 required
-value="<?= htmlspecialchars($subject['subject_name']); ?>">
+value="<?= htmlspecialchars($_POST['subject_name'] ?? $subject['subject_name']); ?>">
 
 </div>
 
@@ -174,16 +215,18 @@ value="<?= htmlspecialchars($subject['subject_name']); ?>">
 
 <label class="form-label">
 
+
 Slug
 
 </label>
 
 <input
 type="text"
+id="slug"
 name="slug"
 class="form-control"
 required
-value="<?= htmlspecialchars($subject['slug']); ?>">
+value="<?= htmlspecialchars($_POST['slug'] ?? $subject['slug']); ?>">
 
 </div>
 
@@ -198,7 +241,7 @@ Description
 <textarea
 name="description"
 class="form-control"
-rows="4"><?= htmlspecialchars($subject['description']); ?></textarea>
+rows="4"><?= htmlspecialchars($_POST['description'] ?? $subject['description']); ?></textarea>
 
 </div>
 
@@ -216,7 +259,7 @@ class="form-select">
 
 <option
 value="Active"
-<?= ($subject['status']=="Active") ? "selected" : ""; ?>>
+<?= (($_POST['status'] ?? $subject['status']) == 'Active') ? 'selected' : ''; ?>>
 
 Active
 
@@ -224,7 +267,7 @@ Active
 
 <option
 value="Inactive"
-<?= ($subject['status']=="Inactive") ? "selected" : ""; ?>>
+<?= (($_POST['status'] ?? $subject['status']) == 'Inactive') ? 'selected' : ''; ?>>
 
 Inactive
 
@@ -261,5 +304,27 @@ Cancel
 </div>
 
 </div>
+
+<script>
+
+const subjectInput = document.getElementById('subject_name');
+
+if (subjectInput) {
+
+    subjectInput.addEventListener('input', function () {
+
+        let slug = this.value
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+
+        document.getElementById('slug').value = slug;
+
+    });
+
+}
+
+</script>
 
 <?php require_once '../../includes/footer.php'; ?>

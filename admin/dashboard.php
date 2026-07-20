@@ -36,12 +36,10 @@ require_once '../includes/header.php';
 <div class="container-fluid p-4">
 
 <h2 class="mb-4">
-
-<i class="fa fa-gauge"></i>
-
-Dashboard
-
+    <i class="fa fa-gauge"></i> Dashboard
 </h2>
+
+<?php require_once '../includes/flash.php'; ?>
 
 <div class="row g-4">
 

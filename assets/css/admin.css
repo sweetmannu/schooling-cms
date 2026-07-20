@@ -1,0 +1,40 @@
+body {
+    font-size: 14px;
+}
+
+.content-wrapper {
+    min-height: calc(100vh - 57px);
+}
+
+.brand-link {
+    font-weight: 700;
+}
+
+.card {
+    border-radius: 10px;
+}
+
+.card-header {
+    font-weight: 600;
+}
+
+.table td,
+.table th {
+    vertical-align: middle;
+}
+
+.required {
+    color: red;
+}
+
+.sidebar .nav-link.active {
+    background: #0d6efd;
+    color: #fff !important;
+}
+
+.img-preview {
+    max-width: 120px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    padding: 3px;
+}

@@ -25,51 +25,41 @@ require_once '../../includes/header.php';
 
 <div class="container-fluid p-4">
 
-<?php if(isset($_SESSION['success'])){ ?>
-
-<div class="alert alert-success">
-
-<?= $_SESSION['success']; unset($_SESSION['success']); ?>
-
-</div>
-
-<?php } ?>
-
 <div class="card shadow">
 
 <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
 
 <h4 class="mb-0">
-<i class="fa fa-list"></i>
-Chapters
+<i class="fa fa-list"></i> Chapters
 </h4>
 
 <a href="create.php" class="btn btn-success">
-<i class="fa fa-plus"></i>
-Add Chapter
+<i class="fa fa-plus"></i> Add Chapter
 </a>
 
 </div>
 
-<div class="card-body p-0">
+<div class="card-body">
 
-<table class="table table-bordered table-hover mb-0">
+<?php require_once '../../includes/flash.php'; ?>
+
+<table id="dataTable" class="table table-bordered table-hover mb-0">
 
 <thead class="table-dark">
 
 <tr>
 
-<th>ID</th>
+<th width="60">ID</th>
 
 <th>Subject</th>
 
 <th>Chapter</th>
 
-<th>Order</th>
+<th width="90">Order</th>
 
-<th>Status</th>
+<th width="100">Status</th>
 
-<th width="170">Action</th>
+<th width="180">Action</th>
 
 </tr>
 
@@ -77,7 +67,7 @@ Add Chapter
 
 <tbody>
 
-<?php if(count($chapters)>0){ ?>
+<?php if(count($chapters) > 0){ ?>
 
 <?php foreach($chapters as $row){ ?>
 
@@ -97,7 +87,7 @@ Add Chapter
 
 <span class="badge bg-success">Active</span>
 
-<?php }else{ ?>
+<?php } else { ?>
 
 <span class="badge bg-danger">Inactive</span>
 
@@ -111,7 +101,7 @@ Add Chapter
 href="edit.php?id=<?= $row['id']; ?>"
 class="btn btn-warning btn-sm">
 
-Edit
+<i class="fa fa-edit"></i> Edit
 
 </a>
 
@@ -120,7 +110,7 @@ href="delete.php?id=<?= $row['id']; ?>"
 class="btn btn-danger btn-sm"
 onclick="return confirm('Delete this chapter?')">
 
-Delete
+<i class="fa fa-trash"></i> Delete
 
 </a>
 
@@ -130,7 +120,7 @@ Delete
 
 <?php } ?>
 
-<?php }else{ ?>
+<?php } else { ?>
 
 <tr>
 
@@ -157,3 +147,17 @@ No Chapters Found.
 </div>
 
 <?php require_once '../../includes/footer.php'; ?>
+
+<script>
+$(function () {
+
+    $('#dataTable').DataTable({
+        pageLength: 10,
+        ordering: true,
+        searching: true,
+        responsive: true,
+        autoWidth: false
+    });
+
+});
+</script>

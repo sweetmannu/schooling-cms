@@ -29,17 +29,19 @@ $categories = $stmt->fetchAll();
 
 <div class="d-flex justify-content-between align-items-center mb-4">
 
-<h2>Categories</h2>
+<h2>
+    <i class="fa fa-folder"></i> Categories
+</h2>
 
 <a href="create.php" class="btn btn-success">
-
-<i class="fa fa-plus"></i> Add Category
-
+    <i class="fa fa-plus"></i> Add Category
 </a>
 
 </div>
 
-<table class="table table-bordered table-hover">
+<?php require_once '../../includes/flash.php'; ?>
+
+<table id="dataTable" class="table table-bordered table-hover">
 
 <thead class="table-dark">
 
@@ -63,7 +65,7 @@ $categories = $stmt->fetchAll();
 
 <tbody>
 
-<?php if(count($categories)>0){ ?>
+<?php if(count($categories) > 0){ ?>
 
 <?php foreach($categories as $row){ ?>
 
@@ -76,8 +78,8 @@ $categories = $stmt->fetchAll();
 <td>
 
 <?= $row['parent_category']
-? htmlspecialchars($row['parent_category'])
-: '<span class="badge bg-primary">Main Category</span>'; ?>
+    ? htmlspecialchars($row['parent_category'])
+    : '<span class="badge bg-primary">Main Category</span>'; ?>
 
 </td>
 
@@ -85,21 +87,13 @@ $categories = $stmt->fetchAll();
 
 <td>
 
-<?php if($row['status']=="Active"){ ?>
+<?php if($row['status'] == "Active"){ ?>
 
-<span class="badge bg-success">
+<span class="badge bg-success">Active</span>
 
-Active
+<?php } else { ?>
 
-</span>
-
-<?php }else{ ?>
-
-<span class="badge bg-danger">
-
-Inactive
-
-</span>
+<span class="badge bg-danger">Inactive</span>
 
 <?php } ?>
 
@@ -108,9 +102,7 @@ Inactive
 <td>
 
 <a href="edit.php?id=<?= $row['id']; ?>" class="btn btn-warning btn-sm">
-
-Edit
-
+    <i class="fa fa-edit"></i> Edit
 </a>
 
 <a
@@ -118,7 +110,7 @@ href="delete.php?id=<?= $row['id']; ?>"
 class="btn btn-danger btn-sm"
 onclick="return confirm('Delete this category?')">
 
-Delete
+<i class="fa fa-trash"></i> Delete
 
 </a>
 
@@ -128,7 +120,7 @@ Delete
 
 <?php } ?>
 
-<?php }else{ ?>
+<?php } else { ?>
 
 <tr>
 
@@ -151,3 +143,15 @@ No Categories Found
 </div>
 
 <?php require_once '../../includes/footer.php'; ?>
+
+<script>
+$(document).ready(function () {
+
+    $('#dataTable').DataTable({
+        pageLength: 10,
+        ordering: true,
+        searching: true
+    });
+
+});
+</script>

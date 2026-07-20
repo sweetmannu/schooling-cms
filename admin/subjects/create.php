@@ -2,6 +2,7 @@
 
 require_once '../../includes/auth.php';
 require_once '../../includes/db.php';
+require_once '../../includes/csrf.php';
 
 $categories = $pdo->query("
 SELECT id, category_name
@@ -14,11 +15,17 @@ $error = "";
 
 if ($_SERVER['REQUEST_METHOD'] == "POST") {
 
+    verify_csrf_token($_POST['csrf_token'] ?? '');
+
     $category_id = (int)$_POST['category_id'];
-    $subject_name = trim($_POST['subject_name']);
+    $subject_name = trim(strip_tags($_POST['subject_name']));
     $slug = strtolower(trim($_POST['slug']));
-    $description = trim($_POST['description']);
-    $status = $_POST['status'];
+    $slug = preg_replace('/[^a-z0-9\-]+/', '-', $slug);
+    $slug = trim($slug, '-');
+    $description = trim(strip_tags($_POST['description']));
+    $status = (($_POST['status'] ?? 'Active') === 'Inactive')
+    ? 'Inactive'
+    : 'Active';
 
     if (
         empty($category_id) ||
@@ -27,6 +34,26 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
     ) {
         $error = "Please fill all required fields.";
     }
+
+    /* Duplicate Subject Check */
+
+if (empty($error)) {
+
+    $check = $pdo->prepare("
+    SELECT id
+    FROM subjects
+    WHERE subject_name=?
+    ");
+
+    $check->execute([$subject_name]);
+
+    if ($check->fetch()) {
+
+        $error = "Subject already exists.";
+
+    }
+
+}
 
     if (empty($error)) {
 
@@ -109,7 +136,12 @@ Add Subject
 
 <?php } ?>
 
-<form method="POST">
+<form method="POST" autocomplete="off">
+
+<input
+type="hidden"
+name="csrf_token"
+value="<?= csrf_token(); ?>">
 
 <div class="mb-3">
 
@@ -128,7 +160,9 @@ required>
 
 <?php foreach($categories as $cat){ ?>
 
-<option value="<?= $cat['id']; ?>">
+<option
+value="<?= $cat['id']; ?>"
+<?= (($_POST['category_id'] ?? '') == $cat['id']) ? 'selected' : ''; ?>>
 
 <?= htmlspecialchars($cat['category_name']); ?>
 
@@ -150,8 +184,10 @@ Subject Name
 
 <input
 type="text"
+id="subject_name"
 name="subject_name"
 class="form-control"
+value="<?= htmlspecialchars($_POST['subject_name'] ?? ''); ?>"
 required>
 
 </div>
@@ -166,8 +202,10 @@ Slug
 
 <input
 type="text"
+id="slug"
 name="slug"
 class="form-control"
+value="<?= htmlspecialchars($_POST['slug'] ?? ''); ?>"
 required>
 
 </div>
@@ -183,7 +221,7 @@ Description
 <textarea
 name="description"
 class="form-control"
-rows="4"></textarea>
+rows="4"><?= htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
 
 </div>
 
@@ -199,9 +237,17 @@ Status
 name="status"
 class="form-select">
 
-<option value="Active">Active</option>
+<option
+value="Active"
+<?= (($_POST['status'] ?? 'Active') == 'Active') ? 'selected' : ''; ?>>
+Active
+</option>
 
-<option value="Inactive">Inactive</option>
+<option
+value="Inactive"
+<?= (($_POST['status'] ?? '') == 'Inactive') ? 'selected' : ''; ?>>
+Inactive
+</option>
 
 </select>
 
@@ -234,5 +280,19 @@ Cancel
 </div>
 
 </div>
+
+<script>
+document.getElementById('subject_name').addEventListener('input', function () {
+
+    let slug = this.value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+    document.getElementById('slug').value = slug;
+
+});
+</script>
 
 <?php require_once '../../includes/footer.php'; ?>

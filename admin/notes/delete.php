@@ -2,13 +2,22 @@
 
 require_once '../../includes/auth.php';
 require_once '../../includes/db.php';
+require_once '../../includes/csrf.php';
 
-if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header("Location: index.php");
     exit;
 }
 
-$id = (int)$_GET['id'];
+verify_csrf_token($_POST['csrf_token'] ?? '');
+
+$id = (int)($_POST['id'] ?? 0);
+
+if ($id <= 0) {
+    header("Location: index.php");
+    exit;
+}
 
 /* Get Note */
 
@@ -37,9 +46,11 @@ if (!empty($note['pdf_file'])) {
 
     $pdfPath = "../../uploads/pdf/" . $note['pdf_file'];
 
-    if (file_exists($pdfPath)) {
-        unlink($pdfPath);
+    if (is_file($pdfPath)) {
+    if (!unlink($pdfPath)) {
+        // Optional: log error
     }
+}
 
 }
 
@@ -49,9 +60,11 @@ if (!empty($note['thumbnail'])) {
 
     $thumbPath = "../../uploads/thumbnails/" . $note['thumbnail'];
 
-    if (file_exists($thumbPath)) {
-        unlink($thumbPath);
+    if (is_file($thumbPath)) {
+    if (!unlink($thumbPath)) {
+        // Optional: log error
     }
+}
 
 }
 
@@ -64,7 +77,11 @@ WHERE id=?
 
 $delete->execute([$id]);
 
-$_SESSION['success'] = "Note Deleted Successfully.";
+if ($delete->rowCount()) {
+    $_SESSION['success'] = "Note Deleted Successfully.";
+} else {
+    $_SESSION['error'] = "Unable to delete note.";
+}
 
 header("Location: index.php");
 exit;

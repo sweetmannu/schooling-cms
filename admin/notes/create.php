@@ -2,6 +2,7 @@
 
 require_once '../../includes/auth.php';
 require_once '../../includes/db.php';
+require_once '../../includes/csrf.php';
 
 $chapters = $pdo->query("
 SELECT
@@ -19,69 +20,227 @@ $error = "";
 
 if ($_SERVER['REQUEST_METHOD']=="POST"){
 
-    $chapter_id = (int)$_POST['chapter_id'];
+        verify_csrf_token($_POST['csrf_token'] ?? '');
 
-    $title = trim($_POST['title']);
+    $chapter_id = isset($_POST['chapter_id'])
+    ? (int)$_POST['chapter_id']
+    : 0;
 
-    $slug = strtolower(trim($_POST['slug']));
+    $title = trim(strip_tags($_POST['title'] ?? ''));
 
-    $short_description = trim($_POST['short_description']);
+    $slug = strtolower(trim($_POST['slug'] ?? ''));
+    $slug = preg_replace('/[^a-z0-9\-]+/', '-', $slug);
+    $slug = trim($slug, '-');
 
-    $content = trim($_POST['content']);
+    $short_description = trim(strip_tags($_POST['short_description'] ?? ''));
 
-    $youtube_url = trim($_POST['youtube_url']);
+    $content = trim($_POST['content'] ?? '');
 
-    $meta_title = trim($_POST['meta_title']);
+    $youtube_url = trim($_POST['youtube_url'] ?? '');
 
-    $meta_description = trim($_POST['meta_description']);
+    $meta_title = trim(strip_tags($_POST['meta_title'] ?? ''));
 
-    $featured = $_POST['featured'];
+    $meta_description = trim(strip_tags($_POST['meta_description'] ?? ''));
 
-    $status = $_POST['status'];
+    $featured = (($_POST['featured'] ?? 'No') === 'Yes')
+    ? 'Yes'
+    : 'No';
+
+    $status = (($_POST['status'] ?? 'Active') === 'Inactive')
+    ? 'Inactive'
+    : 'Active';
+
+    /* Required Validation */
+
+if (
+    empty($chapter_id) ||
+    empty($title) ||
+    empty($slug)
+) {
+
+    $error = "Please fill all required fields.";
+
+}
+
+/* Validate Chapter */
+
+if (empty($error)) {
+
+    $check = $pdo->prepare("
+    SELECT id
+    FROM chapters
+    WHERE id=?
+    AND status='Active'
+    ");
+
+    $check->execute([$chapter_id]);
+
+    if (!$check->fetch()) {
+
+        $error = "Invalid chapter selected.";
+
+    }
+
+}
+
+/* Duplicate Title Check */
+
+if (empty($error)) {
+
+    $check = $pdo->prepare("
+    SELECT id
+    FROM notes
+    WHERE title=?
+    ");
+
+    $check->execute([$title]);
+
+    if ($check->fetch()) {
+
+        $error = "Title already exists.";
+
+    }
+
+}
+
+/* Duplicate Slug Check */
+
+if (empty($error)) {
+
+    $check = $pdo->prepare("
+    SELECT id
+    FROM notes
+    WHERE slug=?
+    ");
+
+    $check->execute([$slug]);
+
+    if ($check->fetch()) {
+
+        $error = "Slug already exists.";
+
+    }
+
+}
 
     $pdf_file = "";
 
     $thumbnail = "";
 
+    /* YouTube URL Validation */
+
+if (
+    empty($error) &&
+    !empty($youtube_url) &&
+    !filter_var($youtube_url, FILTER_VALIDATE_URL)
+) {
+
+    $error = "Please enter a valid YouTube URL.";
+
+}
+
     // PDF Upload
-if (!empty($_FILES['pdf_file']['name'])) {
+
+if (empty($error) && !empty($_FILES['pdf_file']['name'])) {
 
     $pdfExt = strtolower(pathinfo($_FILES['pdf_file']['name'], PATHINFO_EXTENSION));
 
-    if ($pdfExt != 'pdf') {
-        $error = "Only PDF files are allowed.";
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+
+$pdfMime = finfo_file(
+    $finfo,
+    $_FILES['pdf_file']['tmp_name']
+);
+
+finfo_close($finfo);
+
+    if (
+        $pdfExt !== 'pdf' ||
+        $pdfMime !== 'application/pdf'
+    ) {
+
+        $error = "Only valid PDF files are allowed.";
+
     } else {
 
-        $pdf_file = time() . "_pdf." . $pdfExt;
+        $pdf_file = uniqid('pdf_', true) . '.pdf';
 
-        move_uploaded_file(
-            $_FILES['pdf_file']['tmp_name'],
-            "../../uploads/pdf/" . $pdf_file
-        );
-    }
+if ($_FILES['pdf_file']['size'] > 10 * 1024 * 1024) {
+
+    $error = "PDF size must be less than 10MB.";
+
+} elseif (!move_uploaded_file(
+
+    $_FILES['pdf_file']['tmp_name'],
+    "../../uploads/pdf/" . $pdf_file
+
+)) {
+
+    $error = "Failed to upload PDF.";
+
 }
 
-// Thumbnail Upload
+    }
+
+}
+
+    // Thumbnail Upload
+
 if (empty($error) && !empty($_FILES['thumbnail']['name'])) {
 
-    $imgExt = strtolower(pathinfo($_FILES['thumbnail']['name'], PATHINFO_EXTENSION));
+    if ($_FILES['thumbnail']['error'] !== UPLOAD_ERR_OK) {
 
-    $allowed = ['jpg', 'jpeg', 'png', 'webp'];
-
-    if (!in_array($imgExt, $allowed)) {
-
-        $error = "Thumbnail must be JPG, JPEG, PNG or WEBP.";
+        $error = "Thumbnail upload failed.";
 
     } else {
 
-        $thumbnail = time() . "_thumb." . $imgExt;
-
-        move_uploaded_file(
-            $_FILES['thumbnail']['tmp_name'],
-            "../../uploads/thumbnails/" . $thumbnail
+        $imgExt = strtolower(
+            pathinfo($_FILES['thumbnail']['name'], PATHINFO_EXTENSION)
         );
 
+        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+
+        if (!in_array($imgExt, $allowed)) {
+
+            $error = "Thumbnail must be JPG, JPEG, PNG or WEBP.";
+
+        } elseif ($_FILES['thumbnail']['size'] > 2 * 1024 * 1024) {
+
+            $error = "Thumbnail size must be less than 2MB.";
+
+        } else {
+
+            $imgMime = mime_content_type($_FILES['thumbnail']['tmp_name']);
+
+            $allowedMime = [
+                'image/jpeg',
+                'image/png',
+                'image/webp'
+            ];
+
+            if (!in_array($imgMime, $allowedMime)) {
+
+                $error = "Invalid image file.";
+
+            } else {
+
+                $thumbnail = uniqid('thumb_', true) . "." . $imgExt;
+
+                if (!move_uploaded_file(
+                    $_FILES['thumbnail']['tmp_name'],
+                    "../../uploads/thumbnails/" . $thumbnail
+                )) {
+
+                    $error = "Failed to upload thumbnail.";
+
+                }
+
+            }
+
+        }
+
     }
+
 }
 
 // Save Record
@@ -161,7 +320,12 @@ Add Notes
 
 <?php } ?>
 
-<form method="POST" enctype="multipart/form-data">
+<form method="POST" enctype="multipart/form-data" autocomplete="off">
+
+<input
+type="hidden"
+name="csrf_token"
+value="<?= csrf_token(); ?>">
 
 <div class="row">
 
@@ -178,7 +342,9 @@ required>
 
 <?php foreach($chapters as $chapter){ ?>
 
-<option value="<?= $chapter['id']; ?>">
+<option
+value="<?= $chapter['id']; ?>"
+<?= (($_POST['chapter_id'] ?? '') == $chapter['id']) ? 'selected' : ''; ?>>
 
 <?= htmlspecialchars($chapter['subject_name']); ?>
 
@@ -203,6 +369,7 @@ type="text"
 name="title"
 id="title"
 class="form-control"
+value="<?= htmlspecialchars($_POST['title'] ?? ''); ?>"
 required>
 
 </div>
@@ -216,6 +383,7 @@ type="text"
 name="slug"
 id="slug"
 class="form-control"
+value="<?= htmlspecialchars($_POST['slug'] ?? ''); ?>"
 required>
 
 </div>
@@ -263,7 +431,8 @@ YouTube URL
 <input
 type="url"
 name="youtube_url"
-class="form-control">
+class="form-control"
+value="<?= htmlspecialchars($_POST['youtube_url'] ?? ''); ?>">
 
 </div>
 
@@ -278,7 +447,7 @@ Short Description
 <textarea
 name="short_description"
 class="form-control"
-rows="3"></textarea>
+rows="3"><?= htmlspecialchars($_POST['short_description'] ?? ''); ?></textarea>
 
 </div>
 
@@ -294,7 +463,7 @@ Content
 name="content"
 id="content"
 class="form-control"
-rows="8"></textarea>
+rows="8"><?= htmlspecialchars($_POST['content'] ?? ''); ?></textarea>
 
 </div>
 
@@ -309,7 +478,8 @@ Meta Title
 <input
 type="text"
 name="meta_title"
-class="form-control">
+class="form-control"
+value="<?= htmlspecialchars($_POST['meta_title'] ?? ''); ?>">
 
 </div>
 
@@ -325,9 +495,17 @@ Featured
 name="featured"
 class="form-select">
 
-<option value="No">No</option>
+<option
+value="No"
+<?= (($_POST['featured'] ?? 'No') == 'No') ? 'selected' : ''; ?>>
+No
+</option>
 
-<option value="Yes">Yes</option>
+<option
+value="Yes"
+<?= (($_POST['featured'] ?? '') == 'Yes') ? 'selected' : ''; ?>>
+Yes
+</option>
 
 </select>
 
@@ -344,7 +522,7 @@ Meta Description
 <textarea
 name="meta_description"
 class="form-control"
-rows="3"></textarea>
+rows="3"><?= htmlspecialchars($_POST['meta_description'] ?? ''); ?></textarea>
 
 </div>
 
@@ -360,9 +538,17 @@ Status
 name="status"
 class="form-select">
 
-<option value="Active">Active</option>
+<option
+value="Active"
+<?= (($_POST['status'] ?? 'Active') == 'Active') ? 'selected' : ''; ?>>
+Active
+</option>
 
-<option value="Inactive">Inactive</option>
+<option
+value="Inactive"
+<?= (($_POST['status'] ?? '') == 'Inactive') ? 'selected' : ''; ?>>
+Inactive
+</option>
 
 </select>
 
@@ -401,9 +587,15 @@ Cancel
 </div>
 
 </div>
+
+<?php require_once '../../includes/footer.php'; ?>
+
+
 <script>
 
-document.getElementById('title').addEventListener('keyup', function () {
+// Auto Slug
+
+document.getElementById('title').addEventListener('input', function () {
 
     let slug = this.value
         .toLowerCase()
@@ -415,6 +607,29 @@ document.getElementById('title').addEventListener('keyup', function () {
 
 });
 
-</script>
+// TinyMCE
 
-<?php require_once '../../includes/footer.php'; ?>
+tinymce.init({
+    license_key: 'gpl',
+
+    selector: '#content',
+
+    height: 500,
+
+    menubar: true,
+
+    plugins: [
+        'advlist','autolink','lists','link','image',
+        'table','code','fullscreen','preview',
+        'searchreplace','wordcount'
+    ],
+
+    toolbar:
+        'undo redo | blocks | bold italic underline | ' +
+        'alignleft aligncenter alignright alignjustify | ' +
+        'bullist numlist | link image table | ' +
+        'code preview fullscreen'
+
+});
+
+</script>

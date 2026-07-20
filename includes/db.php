@@ -1,25 +1,89 @@
 <?php
 
-require_once __DIR__.'/../config/config.php';
+/*
+|--------------------------------------------------------------------------
+| Load Configuration
+|--------------------------------------------------------------------------
+*/
 
-try{
+require_once __DIR__ . '/../config/config.php';
 
-$pdo=new PDO(
+/*
+|--------------------------------------------------------------------------
+| Database Connection
+|--------------------------------------------------------------------------
+*/
 
-"mysql:host=".DB_HOST.";dbname=".DB_NAME.";charset=utf8mb4",
+$dsn = 'mysql:host='
+    . DB_HOST
+    . ';dbname='
+    . DB_NAME
+    . ';charset='
+    . DB_CHARSET;
 
-DB_USER,
+$options = [
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES   => false,
+    PDO::ATTR_STRINGIFY_FETCHES  => false
+];
 
-DB_PASS
+try {
 
-);
+    $pdo = new PDO(
+        $dsn,
+        DB_USER,
+        DB_PASS,
+        $options
+    );
 
-$pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
 
-$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);
+    /*
+    |--------------------------------------------------------------------------
+    | Development Environment
+    |--------------------------------------------------------------------------
+    |
+    | Localhost par actual error debugging ke liye visible rahega.
+    |
+    */
 
-}catch(PDOException $e){
+    if (
+        defined('APP_ENV') &&
+        APP_ENV === 'development'
+    ) {
 
-die("Database Connection Failed : ".$e->getMessage());
+        die(
+            'Database Connection Failed: '
+            . htmlspecialchars(
+                $e->getMessage(),
+                ENT_QUOTES,
+                'UTF-8'
+            )
+        );
+
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Production Environment
+    |--------------------------------------------------------------------------
+    |
+    | User ko sensitive database details nahi dikhengi.
+    | Actual error server error log me save hoga.
+    |
+    */
+
+    error_log(
+        'Database connection failed: '
+        . $e->getMessage()
+    );
+
+    http_response_code(500);
+
+    die(
+        'A database connection error occurred. '
+        . 'Please try again later.'
+    );
 
 }

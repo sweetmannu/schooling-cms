@@ -1,20 +1,19 @@
 document.addEventListener("DOMContentLoaded", function () {
 
-    const category = document.querySelector('input[name="category_name"]');
-    const slug = document.querySelector('input[name="slug"]');
+    // Auto slug generator
+    const title = document.getElementById("title");
+    const slug = document.getElementById("slug");
 
-    if (category && slug) {
+    if (title && slug) {
+        title.addEventListener("keyup", function () {
 
-        category.addEventListener("keyup", function () {
-
-            slug.value = category.value
+            slug.value = title.value
                 .toLowerCase()
                 .trim()
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/^-+|-+$/g, "");
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
 
         });
-
     }
 
 });

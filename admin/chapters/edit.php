@@ -2,6 +2,7 @@
 
 require_once '../../includes/auth.php';
 require_once '../../includes/db.php';
+require_once '../../includes/csrf.php';
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: index.php");
@@ -39,13 +40,31 @@ ORDER BY subject_name ASC
 $error = "";
 
 if ($_SERVER['REQUEST_METHOD'] == "POST") {
+    verify_csrf_token($_POST['csrf_token'] ?? '');
 
-    $subject_id = (int)$_POST['subject_id'];
-    $chapter_name = trim($_POST['chapter_name']);
-    $slug = strtolower(trim($_POST['slug']));
-    $description = trim($_POST['description']);
-    $chapter_order = (int)$_POST['chapter_order'];
-    $status = $_POST['status'];
+    $subject_id = isset($_POST['subject_id'])
+    ? (int)$_POST['subject_id']
+    : 0;
+
+$chapter_name = trim(strip_tags($_POST['chapter_name'] ?? ''));
+
+$slug = strtolower(trim($_POST['slug'] ?? ''));
+$slug = preg_replace('/[^a-z0-9\-]+/', '-', $slug);
+$slug = trim($slug, '-');
+
+$description = trim(strip_tags($_POST['description'] ?? ''));
+
+$chapter_order = isset($_POST['chapter_order'])
+    ? (int)$_POST['chapter_order']
+    : 1;
+
+if ($chapter_order < 1) {
+    $chapter_order = 1;
+}
+
+$status = (($_POST['status'] ?? 'Active') === 'Inactive')
+    ? 'Inactive'
+    : 'Active';
 
     if (
         empty($subject_id) ||
@@ -54,6 +73,30 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
     ) {
         $error = "Please fill all required fields.";
     }
+
+    /* Duplicate Chapter Check */
+
+if (empty($error)) {
+
+    $check = $pdo->prepare("
+    SELECT id
+    FROM chapters
+    WHERE chapter_name=?
+    AND id!=?
+    ");
+
+    $check->execute([
+        $chapter_name,
+        $id
+    ]);
+
+    if ($check->fetch()) {
+
+        $error = "Chapter already exists.";
+
+    }
+
+}
 
     if (empty($error)) {
 
@@ -137,7 +180,12 @@ Edit Chapter
 
 <?php } ?>
 
-<form method="POST">
+<form method="POST" autocomplete="off">
+
+<input
+type="hidden"
+name="csrf_token"
+value="<?= csrf_token(); ?>">
 
 <div class="mb-3">
 
@@ -157,7 +205,7 @@ required>
 <option
 value="<?= $subject['id']; ?>"
 
-<?= ($chapter['subject_id']==$subject['id']) ? "selected" : ""; ?>>
+<?= (($_POST['subject_id'] ?? $chapter['subject_id']) == $subject['id']) ? 'selected' : ''; ?>>
 
 <?= htmlspecialchars($subject['subject_name']); ?>
 
@@ -179,10 +227,11 @@ Chapter Name
 
 <input
 type="text"
+id="chapter_name"
 name="chapter_name"
 class="form-control"
 required
-value="<?= htmlspecialchars($chapter['chapter_name']); ?>">
+value="<?= htmlspecialchars($_POST['chapter_name'] ?? $chapter['chapter_name']); ?>">
 
 </div>
 
@@ -196,10 +245,11 @@ Slug
 
 <input
 type="text"
+id="slug"
 name="slug"
 class="form-control"
 required
-value="<?= htmlspecialchars($chapter['slug']); ?>">
+value="<?= htmlspecialchars($_POST['slug'] ?? $chapter['slug']); ?>">
 
 </div>
 
@@ -214,7 +264,7 @@ Description
 <textarea
 name="description"
 class="form-control"
-rows="4"><?= htmlspecialchars($chapter['description']); ?></textarea>
+rows="4"><?= htmlspecialchars($_POST['description'] ?? $chapter['description']); ?></textarea>
 
 </div>
 
@@ -231,7 +281,8 @@ type="number"
 name="chapter_order"
 class="form-control"
 required
-value="<?= $chapter['chapter_order']; ?>">
+value="<?= htmlspecialchars($_POST['chapter_order'] ?? $chapter['chapter_order']); ?>"
+min="1">
 
 </div>
 
@@ -249,7 +300,7 @@ class="form-select">
 
 <option
 value="Active"
-<?= ($chapter['status']=="Active") ? "selected" : ""; ?>>
+<?= (($_POST['status'] ?? $chapter['status']) == 'Active') ? 'selected' : ''; ?>>
 
 Active
 
@@ -257,7 +308,7 @@ Active
 
 <option
 value="Inactive"
-<?= ($chapter['status']=="Inactive") ? "selected" : ""; ?>>
+<?= (($_POST['status'] ?? $chapter['status']) == 'Inactive') ? 'selected' : ''; ?>>
 
 Inactive
 
@@ -298,5 +349,21 @@ Cancel
 </div>
 
 </div>
+
+<script>
+
+document.getElementById('chapter_name').addEventListener('input', function () {
+
+    let slug = this.value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+    document.getElementById('slug').value = slug;
+
+});
+
+</script>
 
 <?php require_once '../../includes/footer.php'; ?>

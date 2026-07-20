@@ -2,6 +2,7 @@
 
 require_once '../../includes/auth.php';
 require_once '../../includes/db.php';
+require_once '../../includes/csrf.php';
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     header("Location: index.php");
@@ -39,19 +40,45 @@ $parents = $parentCategories->fetchAll();
 $error = "";
 
 if ($_SERVER['REQUEST_METHOD'] == "POST") {
+    verify_csrf_token($_POST['csrf_token'] ?? '');
 
     $parent_id = !empty($_POST['parent_id'])
         ? (int) $_POST['parent_id']
         : NULL;
 
-    $name = trim($_POST['category_name']);
+    $name = trim(strip_tags($_POST['category_name']));
     $slug = strtolower(trim($_POST['slug']));
-    $status = $_POST['status'];
+    $slug = preg_replace('/[^a-z0-9\-]+/', '-', $slug);
+    $slug = trim($slug, '-');
+    $status = (($_POST['status'] ?? 'Active') === 'Inactive')
+    ? 'Inactive'
+    : 'Active';
 
-    if ($name == "" || $slug == "") {
-        $error = "All fields are required.";
+    if (empty($name) || empty($slug)) {
+    $error = "Category Name and Slug are required.";
+}
+
+if (empty($error)) {
+
+    $check = $pdo->prepare("
+    SELECT id
+    FROM categories
+    WHERE category_name=?
+    AND id!=?
+    ");
+
+    $check->execute([
+        $name,
+        $id
+    ]);
+
+    if ($check->fetch()) {
+
+        $error = "Category already exists.";
+
     }
 
+}
     /* Duplicate Slug Check */
 
     if (empty($error)) {
@@ -131,7 +158,11 @@ require_once '../../includes/header.php';
 
 <?php } ?>
 
-<form method="POST">
+<form method="POST" autocomplete="off">
+<input
+type="hidden"
+name="csrf_token"
+value="<?= csrf_token(); ?>">
 
 <div class="mb-3">
 
@@ -152,7 +183,7 @@ class="form-select">
 <option
 value="<?= $parent['id']; ?>"
 
-<?= ($category['parent_id']==$parent['id']) ? 'selected' : ''; ?>>
+<?= (($_POST['parent_id'] ?? $category['parent_id']) == $parent['id']) ? 'selected' : ''; ?>>
 
 <?= htmlspecialchars($parent['category_name']); ?>
 
@@ -174,10 +205,11 @@ Category Name
 
 <input
 type="text"
+id="category_name"
 name="category_name"
 class="form-control"
 required
-value="<?= htmlspecialchars($category['category_name']); ?>">
+value="<?= htmlspecialchars($_POST['category_name'] ?? $category['category_name']); ?>">
 
 </div>
 
@@ -191,10 +223,11 @@ Slug
 
 <input
 type="text"
+id="slug"
 name="slug"
 class="form-control"
 required
-value="<?= htmlspecialchars($category['slug']); ?>">
+value="<?= htmlspecialchars($_POST['slug'] ?? $category['slug']); ?>">
 
 </div>
 
@@ -213,7 +246,7 @@ class="form-select">
 <option
 value="Active"
 
-<?= ($category['status']=="Active") ? "selected" : ""; ?>>
+<?= (($_POST['status'] ?? $category['status']) == 'Active') ? 'selected' : ''; ?>>
 
 Active
 
@@ -222,7 +255,7 @@ Active
 <option
 value="Inactive"
 
-<?= ($category['status']=="Inactive") ? "selected" : ""; ?>>
+<?= (($_POST['status'] ?? $category['status']) == 'Inactive') ? 'selected' : ''; ?>>
 
 Inactive
 
@@ -263,5 +296,21 @@ Cancel
 </div>
 
 </div>
+
+<script>
+
+document.getElementById('category_name').addEventListener('input', function () {
+
+    let slug = this.value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+    document.getElementById('slug').value = slug;
+
+});
+
+</script>
 
 <?php require_once '../../includes/footer.php';

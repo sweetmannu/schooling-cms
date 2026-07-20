@@ -11,8 +11,8 @@ require_once '../../includes/db.php';
 
 $stmt = $pdo->query("
 SELECT
-subjects.*,
-categories.category_name
+    subjects.*,
+    categories.category_name
 FROM subjects
 LEFT JOIN categories
 ON subjects.category_id = categories.id
@@ -33,21 +33,25 @@ require_once '../../includes/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-4">
 
-<h2>Subjects</h2>
+<h2>
+    <i class="fa fa-book"></i> Subjects
+</h2>
 
 <a href="create.php" class="btn btn-success">
-<i class="fa fa-plus"></i> Add Subject
+    <i class="fa fa-plus"></i> Add Subject
 </a>
 
 </div>
 
-<table class="table table-bordered table-hover shadow">
+<?php require_once '../../includes/flash.php'; ?>
+
+<table id="dataTable" class="table table-bordered table-hover shadow">
 
 <thead class="table-dark">
 
 <tr>
 
-<th>ID</th>
+<th width="60">ID</th>
 
 <th>Category</th>
 
@@ -65,7 +69,7 @@ require_once '../../includes/header.php';
 
 <tbody>
 
-<?php if(count($subjects)>0){ ?>
+<?php if(count($subjects) > 0){ ?>
 
 <?php foreach($subjects as $row){ ?>
 
@@ -81,11 +85,11 @@ require_once '../../includes/header.php';
 
 <td>
 
-<?php if($row['status']=="Active"){ ?>
+<?php if($row['status'] == "Active"){ ?>
 
 <span class="badge bg-success">Active</span>
 
-<?php }else{ ?>
+<?php } else { ?>
 
 <span class="badge bg-danger">Inactive</span>
 
@@ -99,16 +103,16 @@ require_once '../../includes/header.php';
 href="edit.php?id=<?= $row['id']; ?>"
 class="btn btn-warning btn-sm">
 
-Edit
+<i class="fa fa-edit"></i> Edit
 
 </a>
 
 <a
 href="delete.php?id=<?= $row['id']; ?>"
 class="btn btn-danger btn-sm"
-onclick="return confirm('Delete Subject?')">
+onclick="return confirm('Delete this subject?')">
 
-Delete
+<i class="fa fa-trash"></i> Delete
 
 </a>
 
@@ -118,7 +122,7 @@ Delete
 
 <?php } ?>
 
-<?php }else{ ?>
+<?php } else { ?>
 
 <tr>
 
@@ -141,3 +145,17 @@ No Subjects Found
 </div>
 
 <?php require_once '../../includes/footer.php'; ?>
+
+<script>
+$(function () {
+
+    $('#dataTable').DataTable({
+        pageLength: 10,
+        ordering: true,
+        searching: true,
+        responsive: true,
+        autoWidth: false
+    });
+
+});
+</script>
